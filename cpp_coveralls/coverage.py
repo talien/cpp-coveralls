@@ -110,9 +110,26 @@ def is_libtool_dir(dir_path):
 def libtool_dir_to_source_dir(dir_path):
     return os.path.dirname(dir_path)
 
+def longest_common_substr(data):
+    substr = ''
+    if len(data) > 1 and len(data[0]) > 0:
+        for i in range(len(data[0])):
+            for j in range(len(data[0])-i+1):
+                if j > len(substr) and all(data[0][i:i+j] in x for x in data):
+                    substr = data[0][i:i+j]
+    return substr
 
 def libtool_source_file_path(dir_path, source_file_path):
     source_dir_path = libtool_dir_to_source_dir(dir_path)
+    common_substr = longest_common_substr([source_dir_path, source_file_path])
+    print "SOURCE_DIR_PATH: %s" % source_dir_path
+    print "PRE_SOURCE_FILE_PATH: %s" % source_file_path
+
+    if (len(common_substr) > 0) and (source_dir_path.endswith(common_substr)) and (source_file_path[len(common_substr)] == '/' ):
+       source_file_path = source_file_path[len(common_substr)+1:]
+    print "COMMON_SUBSTR: %s" % common_substr
+    print "SOURCE_FILE_PATH: %s" % source_file_path
+   
     return os.path.join(source_dir_path, source_file_path)
 
 
@@ -292,17 +309,30 @@ def collect(args):
         root_is_libtool_dir = is_libtool_dir(root)
         for filepath in files:
             if os.path.splitext(filepath)[1] == '.gcov':
+		#print "FILEPATH: %s" % filepath
+	        #print "ROOT: %s" % root
+		print "IS_LIBTOOL: %s" % root_is_libtool_dir
                 gcov_path = os.path.join(os.path.join(root, filepath))
+		print "GCOV_PATH: %s" % gcov_path
                 with open(gcov_path) as fobj:
                     source_file_line = fobj.readline()
                     source_file_path = source_file_line.split(':')[-1].strip()
+		    print "MAIN_PRE_SOURCE_FILE_PATH: %s" % source_file_path
+		    if source_file_path == "<built-in>":
+		       continue
                     if not os.path.isabs(source_file_path):
                         if args.build_root:
+			    #print "BUILD_ROOT"
                             source_file_path = os.path.join(
                                 args.build_root, source_file_path)
                         elif root_is_libtool_dir:
-                            source_file_path = os.path.abspath(
-                                libtool_source_file_path(
+			    print "LIBTOOL"
+			    if source_file_path.startswith("./"):
+			       source_file_path = os.path.join(
+				  abs_root, source_file_path)
+			    else:
+                               source_file_path = os.path.abspath(
+                                  libtool_source_file_path(
                                     root, source_file_path))
                         else:
                             if not source_file_path.startswith('../') and \
@@ -312,6 +342,7 @@ def collect(args):
                                 the_root = root
                             source_file_path = os.path.abspath(
                                 os.path.join(the_root, source_file_path))
+		    #print "SOURCE_FILE_PATH: %s" % source_file_path
                     src_path = os.path.relpath(source_file_path, abs_root)
                     if len(src_path) > 3 and src_path.startswith('../'):
                         continue
@@ -349,6 +380,7 @@ def open_with_encodings(filename, encodings):
     Return the open file.
 
     """
+    print "FILENAME:%s" % filename
     with io.open(filename,
                  encoding=try_encodings(filename, encodings)) as input_file:
         yield input_file
